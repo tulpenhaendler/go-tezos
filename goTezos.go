@@ -16,21 +16,6 @@ import (
   "./tezex"
 )
 
-var TezosPath string
-
-/*
-Description: This library needs the TEZOSPATH enviroment variable to function
-*/
-func init() {
-  var ok bool
-  TezosPath, ok = os.LookupEnv("TEZOSPATH")
-  if !ok {
-	   fmt.Println("Error: Could not retrieve TEZOSPATH")
-	   os.Exit(1)
-  }
-  TezosPath = TezosPath + "tezos-client"
-}
-
 /*
 Description: Gets the snapshot number for a certain cycle and returns the block level
 Param cycle (int): Takes a cycle number as an integer to query for that cycles snapshot
@@ -66,35 +51,12 @@ func GetSnapShot(cycle int) (SnapShot, error){
 }
 
 /*
-Description: Will retreive the current block level as an integer
-Returns (int): Returns integer representation of block level
-*/
-func GetBlockLevelHead() (int, error){
-  s, err := TezosRPCGet("chains/main/blocks/head")
-  if (err != nil){
-    return 0, errors.New("Could not get block level for head: TezosRPCGet(arg string) failed: " + err.Error())
-  }
-
-
-  regHeadLevelResult := reGetBlockLevelHead.FindStringSubmatch(s)
-  if (regHeadLevelResult == nil){
-    return 0, errors.New("Could not get block level for head")
-  }
-  headlevel, _ := strconv.Atoi(regHeadLevelResult[1]) //TODO Error Checking
-
-  return headlevel, nil
-}
-
-/*
 Description: Takes a block level, and returns the hash for that specific level
 Param level (int): An integer representation of the block level to query
 Returns (string): A string representation of the hash for the block level queried.
 */
 func GetBlockLevelHash(level int) (string, error){
-  head, err := GetBlockLevelHead()
-  if (err != nil){
-    return "", errors.New("Could not get hash for block " +  strconv.Itoa(level) + ": GetBlockLevelHead() failed: " + err.Error())
-  }
+  head := tezex.Blockheight()
   diff :=  head - level
 
   diffStr := strconv.Itoa(diff)
@@ -114,32 +76,12 @@ func GetBlockLevelHash(level int) (string, error){
 }
 
 /*
-Description: Returns the balance to a specific tezos address
-Param tezosAddr (string): Takes a string representation of the address querying
-Returns (float64): Returns a float64 representation of the balance for the account
-*/
-func GetBalanceFor(tezosAddr string) (float64, error){
-
-  s, err := TezosDo("get", "balance", "for", tezosAddr)
-  if (err != nil){
-    return 0, errors.New("Could not get balance for " + tezosAddr + ": tezosDo(args ...string) failed: " + err.Error())
-  }
-  regGetBalance := reGetBalance.FindStringSubmatch(s) //TODO Regex error checking
-  if (regGetBalance == nil){
-    return 0, errors.New("Could not get balance for " + tezosAddr)
-  }
-  floatBalance, _ := strconv.ParseFloat(regGetBalance[1], 64) //TODO error checking
-
-  return floatBalance, nil
-}
-
-/*
 Description: Will get the balance of an account at a specific snapshot
 Param tezosAddr (string): Takes a string representation of the address querying
 Param cycle (int): The cycle we are getting the snapshot for
 Returns (float64): Returns a float64 representation of the balance for the account
 */
-func GetBalanceAtSnapShotFor(tezosAddr string, cycle int) (float64, error){
+func GetAccountBalanceAtSnapshot(tezosAddr string, cycle int) (float64, error){
   snapShot, err := GetSnapShot(cycle)
   if (err != nil){
     return 0, errors.New("Could not get balance at snapshot for " +  tezosAddr + ": GetSnapShot(cycle int) failed: " + err.Error())
@@ -172,101 +114,4 @@ func GetBalanceAtSnapShotFor(tezosAddr string, cycle int) (float64, error){
   }
 
   return returnBalance / 1000000, nil
-}
-
-/*
-Description: Sends tezos from your specified wallet to another account.
-Param amount (float64): Amount of tezos to be sent
-Param toAddress (string): The address you are sending tezos to.
-Param alias (string): The named alias assigned to your wallet you are sending out of.
-
-****WARNING****
-If not using the ledger there is nothing stopping this from actually sending Tezos.
-With the ledger you have to physically confirm the transaction, without the ledger you don't.
-
-BE CAREFUL WHEN CALLING THIS FUNCTION!!!!!
-****WARNING****
-*/
-func SendTezos(amount float64, toAddress string, alias string) error{
-  strAmount := strconv.FormatFloat(amount, 'f', -1, 64)
-  _, err := TezosDo("transfer", strAmount, "from", alias, "to", toAddress)
-  if (err != nil){
-    return errors.New("Could not send " + strAmount + " XTZ from " + alias + " to " + toAddress + ": tezosDo(args ...string) failed: " + err.Error())
-  }
-  return nil
-}
-
-/*
-Description: Sends tezos from your specified wallet to another account, but makes you confirm the transaction.
-Param amount (float64): Amount of tezos to be sent
-Param toAddress (string): The address you are sending tezos to.
-Param alias (string): The named alias assigned to your wallet you are sending out of.
-*/
-func SafeSendTezos(amount float64, toAddress string, alias string) error{
-  strAmount := strconv.FormatFloat(amount, 'f', -1, 64)
-
-  confirmStatement := "Send " + strAmount + " XTZ from " + alias + " to " + toAddress + "?"
-  confirmation := askForConfirmation(confirmStatement)
-
-  if confirmation{
-    _, err := TezosDo("transfer", strAmount, "from", alias, "from", toAddress)
-    if (err != nil){
-      return errors.New("Could not send " + strAmount + " XTZ from " + alias + " to " + toAddress + ": tezosDo(args ...string) failed: " + err.Error())
-    }
-  } else {
-    return errors.New("Cancelled: Send " + strAmount + " XTZ from " + alias + " to " + toAddress)
-  }
-  return nil
-}
-
-
-/*
-Description: Will list the known addresses to your node and parse them into a multi-array.
-Returns ([]KnownAddress): A structure containing the known address
-*/
-func ListKownAddresses() ([]KnownAddress, error){
-  var knownAddresses []KnownAddress
-
-  s, err := TezosDo("list", "known", "addresses")
-  if (err != nil){
-    return knownAddresses, errors.New("Could not list known addresses: tezosDo(args ...string) failed: " + err.Error())
-  }
-
-  parseKownAddresses := reListKownAddresses.FindAllStringSubmatch(s, -1)
-  if (parseKownAddresses == nil){
-    return knownAddresses, errors.New("Could not parse known addresses")
-  }
-
-  for _, address := range parseKownAddresses{
-    knownAddresses = append(knownAddresses, KnownAddress{Address:address[1],Alias:address[0],Sk:address[2]})
-  }
-
-  return knownAddresses, nil
-}
-
-/*
-Description: A function that executes a command to the tezos-client
-Param args ([]string): Arguments to be executed
-Returns (string): Returns the output of the executed command as a string
-*/
-func TezosDo(args ...string) (string, error){
-  out, err := exec.Command(TezosPath, args...).Output()
-  if err != nil {
-    return "", err
-  }
-
-  return string(out[:]), nil
-}
-
-/*
-Description: A function that executes an rpc get arg
-Param args ([]string): Arguments to be executed
-Returns (string): Returns the output of the executed command as a string
-*/
-func TezosRPCGet(arg string) (string, error){
-  output, err := TezosDo("rpc", "get", arg)
-  if (err != nil){
-    return output, errors.New("Could not rpc get " + arg + " : tezosDo(args ...string) failed: " + err.Error())
-  }
-  return output, nil
 }

@@ -21,17 +21,17 @@ Param cycleStart (int): The first cycle we are calculating
 Param cycleEnd (int): The last cycle we are calculating
 Returns delegatedClients ([]DelegatedClient): A list of all the delegated contracts
 */
-func CalculateAllCommitmentsForCycles(delegatedClients []DelegatedClient, cycleStart int, cycleEnd int, rate float64) ([]DelegatedClient, error){
+func CalculateAllContractsForCycles(delegatedContracts[]DelegatedContract, cycleStart int, cycleEnd int, rate float64) ([]DelegatedClient, error){
   var err error
 
   for cycleStart <= cycleEnd {
-    delegatedClients, err = CalculateAllCommitmentsForCycle(delegatedClients, cycleStart, rate)
+    delegatedContracts, err = CalculateAllContractsForCycle(delegatedContracts, cycleStart, rate)
     if (err != nil){
-      return delegatedClients, errors.New("Could not calculate all commitments for cycles " + strconv.Itoa(cycleStart) + "-" +  strconv.Itoa(cycleEnd) + ":CalculateAllCommitmentsForCycle(delegatedClients []DelegatedClient, cycle int, rate float64) failed: " + err.Error())
+      return delegatedContracts, errors.New("Could not calculate all commitments for cycles " + strconv.Itoa(cycleStart) + "-" +  strconv.Itoa(cycleEnd) + ":CalculateAllCommitmentsForCycle(delegatedClients []DelegatedClient, cycle int, rate float64) failed: " + err.Error())
     }
     cycleStart = cycleStart + 1
   }
-   return delegatedClients, nil
+   return delegatedContracts, nil
 }
 
 /*
@@ -44,9 +44,9 @@ func CalculateAllContractsForCycle(delegatedContracts []DelegatedContract, cycle
   var sum float64
   sum = 0
   for index, delegation := range delegatedContracts{
-    balance, err := GetBalanceAtSnapShotFor(delegation.Address, cycle)
+    balance, err := GetAccountBalanceAtSnapshot(delegation.Address, cycle)
     if (err != nil){
-      return delegatedClients, errors.New("Could not calculate all commitments for cycle " + strconv.Itoa(cycle) + ":GetBalanceAtSnapShotFor(tezosAddr string, cycle int) failed: " + err.Error())
+      return delegatedClients, errors.New("Could not calculate all commitments for cycle " + strconv.Itoa(cycle) + ":GetAccountBalanceAtSnapshot(tezosAddr string, cycle int) failed: " + err.Error())
     }
     sum = sum + balance
     delegatedClients[index].Contracts = append(delegatedClients[index].Contracts, Contracts{Cycle:cycle, Amount:balance})
