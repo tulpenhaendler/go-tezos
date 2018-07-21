@@ -115,3 +115,33 @@ func GetAccountBalanceAtSnapshot(tezosAddr string, cycle int) (float64, error){
 
   return returnBalance / 1000000, nil
 }
+
+/*
+Description: Will get the staking balance of a delegate
+Param delegateAddr (string): Takes a string representation of the address querying
+Returns (float64): Returns a float64 representation of the balance for the account
+*/
+func GetDelegateStakingBalance(delegateAddr string, hash string) (float64, error){
+  rpcCall := "/chains/main/blocks/" + hash + "/context/delegates/" + delegateAddr + "/staking_balance"
+
+  s, err := TezosRPCGet(rpcCall)
+  if (err != nil){
+    return 0, errors.New("GetDelegateStakingBalance(delegateAddr string) failed: " + err.Error())
+  }
+
+  regGetBalance := reGetBalance.FindStringSubmatch(s)
+  if (regGetBalance == nil){
+    return 0, errors.New("Could not parse balance for " + s)
+  }
+
+  var returnBalance float64
+
+  if (len(regGetBalance) < 1){
+    returnBalance = 0
+  } else{
+    floatBalance, _ := strconv.ParseFloat(regGetBalance[1], 64) //TODO error checking
+    returnBalance = floatBalance
+  }
+
+  return returnBalance / 1000000, nil
+}
