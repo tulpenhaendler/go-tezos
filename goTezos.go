@@ -122,19 +122,24 @@ Param delegateAddr (string): Takes a string representation of the address queryi
 Returns (float64): Returns a float64 representation of the balance for the account
 */
 func GetDelegateStakingBalance(delegateAddr string, cycle int) (float64, error){
-  snapShot, err := GetSnapShot(cycle)
+  var snapShot SnapShot
+  var err error
+  var hash string
+  var s string
+
+  snapShot, err = GetSnapShot(cycle)
   if (err != nil){
     return delegatedContracts, errors.New("GetDelegateStakingBalance(delegateAddr string, cycle int) failed: " + errors.New())
   }
 
-  hash, err := GetBlockLevelHash(snapShot.AssociatedBlock)
+  hash, err = GetBlockLevelHash(snapShot.AssociatedBlock)
   if (err != nil){
     return delegatedContracts, errors.New("GetDelegateStakingBalance(delegateAddr string, cycle int) failed: " + errors.New())
   }
 
   rpcCall := "/chains/main/blocks/" + hash + "/context/delegates/" + delegateAddr + "/staking_balance"
 
-  s, err := TezosRPCGet(rpcCall)
+  s, err = TezosRPCGet(rpcCall)
   if (err != nil){
     return 0, errors.New("GetDelegateStakingBalance(delegateAddr string) failed: " + err.Error())
   }

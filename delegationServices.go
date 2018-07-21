@@ -41,17 +41,21 @@ Param delegatedClients ([]DelegatedClient): A list of all the delegated contract
 Param cycle (int): The cycle we are calculating
 Returns delegatedClients ([]DelegatedClient): A list of all the delegated contracts
 */
-func CalculateAllContractsForCycle(delegatedContracts []DelegatedContract, cycle int, rate float64) error {
-  stakingBalance, err := GetDelegateStakingBalance(delegateAddr, cycle)
+func CalculateAllContractsForCycle(delegatedContracts []DelegatedContract, cycle int, rate float64, spillage bool) error {
+  var err error
+  var stakingBalance float64
+  var balance float64
+
+  stakingBalance, err = GetDelegateStakingBalance(delegateAddr, cycle)
   if (err != nil){
     return delegatedContracts, errors.New("func CalculateRollSpillage(delegatedContracts []DelegatedContract, delegateAddr string) failed: " + errors.New())
   }
 
   mod := math.Mod(stakingBalance, 10000)
   sum := mod * 10000
-  
+
   for index, delegation := range delegatedContracts{
-    balance, err := GetAccountBalanceAtSnapshot(delegation.Address, cycle)
+    balance, err = GetAccountBalanceAtSnapshot(delegation.Address, cycle)
     if (err != nil){
       return delegatedClients, errors.New("Could not calculate all commitments for cycle " + strconv.Itoa(cycle) + ":GetAccountBalanceAtSnapshot(tezosAddr string, cycle int) failed: " + err.Error())
     }
@@ -66,7 +70,12 @@ func CalculateAllContractsForCycle(delegatedContracts []DelegatedContract, cycle
       }
       counter = counter + 1
     }
-    delegatedContracts[index].Contracts[counter].SharePercentage = delegatedContracts[index].Contracts[counter].Amount / sum
+    stakingBalance = stakingBalance - contract.Amount
+    if (stakingBalance < 0 && spillage){
+      delegatedContracts[index].Contracts[counter].SharePercentage = (contract.Amount + stakingBalance) / sum
+    } else{
+      delegatedContracts[index].Contracts[counter].SharePercentage = delegatedContracts[index].Contracts[counter].Amount / sum
+    }
     delegatedContracts[index].Contracts[counter] = CalculatePayoutForContract(delegatedContracts[index].Contracts[counter], rate, delegatedContracts[index].Delegator)
   }
 }
@@ -234,8 +243,6 @@ func CalculateRollSpillage(delegatedContracts []DelegatedContract, delegateAddr 
     }
   }
 }
-
-func
 
 /*
 Description: Reverse the order of an array of DelegatedClient.
