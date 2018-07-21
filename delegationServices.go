@@ -226,11 +226,15 @@ func CalculateRollSpillage(delegatedContracts []DelegatedContract, delegateAddr 
   }
 
   mod := math.Mod(stakingBalance, 10000)
+  sum := mod * 10000
 
   for index, delegatedContract := range delegatedContracts{
     for i, contract := range delegatedContract.Contracts{
       if (contract.Cycle == cycle){
-
+        stakingBalance = stakingBalance - contract.Amount
+        if (stakingBalance < 0){
+          delegatedContracts[index].Contracts[i].SharePercentage = (contract.Amount - stakingBalance) / sum
+        }
       }
     }
   }
