@@ -121,7 +121,17 @@ Description: Will get the staking balance of a delegate
 Param delegateAddr (string): Takes a string representation of the address querying
 Returns (float64): Returns a float64 representation of the balance for the account
 */
-func GetDelegateStakingBalance(delegateAddr string, hash string) (float64, error){
+func GetDelegateStakingBalance(delegateAddr string, cycle int) (float64, error){
+  snapShot, err := GetSnapShot(cycle)
+  if (err != nil){
+    return delegatedContracts, errors.New("GetDelegateStakingBalance(delegateAddr string, cycle int) failed: " + errors.New())
+  }
+
+  hash, err := GetBlockLevelHash(snapShot.AssociatedBlock)
+  if (err != nil){
+    return delegatedContracts, errors.New("GetDelegateStakingBalance(delegateAddr string, cycle int) failed: " + errors.New())
+  }
+
   rpcCall := "/chains/main/blocks/" + hash + "/context/delegates/" + delegateAddr + "/staking_balance"
 
   s, err := TezosRPCGet(rpcCall)

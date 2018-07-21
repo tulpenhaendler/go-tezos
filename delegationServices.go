@@ -42,14 +42,19 @@ Param cycle (int): The cycle we are calculating
 Returns delegatedClients ([]DelegatedClient): A list of all the delegated contracts
 */
 func CalculateAllContractsForCycle(delegatedContracts []DelegatedContract, cycle int, rate float64) error {
-  var sum float64
-  sum = 0
+  stakingBalance, err := GetDelegateStakingBalance(delegateAddr, cycle)
+  if (err != nil){
+    return delegatedContracts, errors.New("func CalculateRollSpillage(delegatedContracts []DelegatedContract, delegateAddr string) failed: " + errors.New())
+  }
+
+  mod := math.Mod(stakingBalance, 10000)
+  sum := mod * 10000
+  
   for index, delegation := range delegatedContracts{
     balance, err := GetAccountBalanceAtSnapshot(delegation.Address, cycle)
     if (err != nil){
       return delegatedClients, errors.New("Could not calculate all commitments for cycle " + strconv.Itoa(cycle) + ":GetAccountBalanceAtSnapshot(tezosAddr string, cycle int) failed: " + err.Error())
     }
-    sum = sum + balance
     delegatedClients[index].Contracts = append(delegatedClients[index].Contracts, Contracts{Cycle:cycle, Amount:balance})
   }
 
@@ -210,17 +215,7 @@ Description: A function to account for incomplete rolls, and the payouts associa
 TODO - In progress
 */
 func CalculateRollSpillage(delegatedContracts []DelegatedContract, delegateAddr string, cycle int) ([]DelegatedContract, error) {
-  snapShot, err := GetSnapShot(cycle)
-  if (err != nil){
-    return delegatedContracts, errors.New("func CalculateRollSpillage(delegatedContracts []DelegatedContract, delegateAddr string) failed: " + errors.New())
-  }
-
-  hash, err := GetBlockLevelHash(snapShot.AssociatedBlock)
-  if (err != nil){
-    return delegatedContracts, errors.New("func CalculateRollSpillage(delegatedContracts []DelegatedContract, delegateAddr string) failed: " + errors.New())
-  }
-
-  stakingBalance, err := GetDelegateStakingBalance(delegateAddr, hash)
+  stakingBalance, err := GetDelegateStakingBalance(delegateAddr, cycle)
   if (err != nil){
     return delegatedContracts, errors.New("func CalculateRollSpillage(delegatedContracts []DelegatedContract, delegateAddr string) failed: " + errors.New())
   }
@@ -239,6 +234,8 @@ func CalculateRollSpillage(delegatedContracts []DelegatedContract, delegateAddr 
     }
   }
 }
+
+func
 
 /*
 Description: Reverse the order of an array of DelegatedClient.
