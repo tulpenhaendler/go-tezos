@@ -13,6 +13,7 @@ import (
   "os/exec"
   "strconv"
   "errors"
+  "./tezex"
 )
 
 var TezosPath string
@@ -50,7 +51,7 @@ func GetSnapShot(cycle int) (SnapShot, error){
   regRandomSeed := reGetRandomSeed.FindStringSubmatch(s)
   if (regRandomSeed == nil){
     return snapShot, errors.New("No random seed, could not get snapshot for cycle " + strCycle)
-  }
+}
 
 
   regRollSnapShot := reGetRollSnapShot.FindStringSubmatch(s)

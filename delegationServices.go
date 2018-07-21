@@ -11,6 +11,7 @@ import (
   "time"
   "strconv"
   "errors"
+  "./tezex"
 )
 
 /*
@@ -39,30 +40,29 @@ Param delegatedClients ([]DelegatedClient): A list of all the delegated contract
 Param cycle (int): The cycle we are calculating
 Returns delegatedClients ([]DelegatedClient): A list of all the delegated contracts
 */
-func CalculateAllCommitmentsForCycle(delegatedClients []DelegatedClient, cycle int, rate float64) ([]DelegatedClient, error){
+func CalculateAllContractsForCycle(delegatedContracts []DelegatedContract, cycle int, rate float64) error {
   var sum float64
   sum = 0
-  for i := 0; i < len(delegatedClients); i++{
-    balance, err := GetBalanceAtSnapShotFor(delegatedClients[i].Address, cycle)
+  for index, delegation := range delegatedContracts{
+    balance, err := GetBalanceAtSnapShotFor(delegation.Address, cycle)
     if (err != nil){
       return delegatedClients, errors.New("Could not calculate all commitments for cycle " + strconv.Itoa(cycle) + ":GetBalanceAtSnapShotFor(tezosAddr string, cycle int) failed: " + err.Error())
     }
     sum = sum + balance
-    delegatedClients[i].Commitments = append(delegatedClients[i].Commitments, Commitment{Cycle:cycle, Amount:balance})
+    delegatedClients[index].Contracts = append(delegatedClients[index].Contracts, Contracts{Cycle:cycle, Amount:balance})
   }
 
-  for x := 0; x < len(delegatedClients); x++{
+  for index, delegation := range  delegatedContracts{
     counter := 0
-    for y := 0; y < len(delegatedClients[x].Commitments); y++{
-      if (delegatedClients[x].Commitments[y].Cycle == cycle){
+    for i, contract := range delegatedContracts.Contracts {
+      if (delegatedContracts[index].Contracts[i].Cycle == cycle){
         break
       }
       counter = counter + 1
     }
-    delegatedClients[x].Commitments[counter].SharePercentage = delegatedClients[x].Commitments[counter].Amount / sum
-    delegatedClients[x].Commitments[counter] = CalculatePayoutForCommitment(delegatedClients[x].Commitments[counter], rate, delegatedClients[x].Delegator)
+    delegatedContracts[index].Contracts[counter].SharePercentage = delegatedContracts[index].Contracts[counter].Amount / sum
+    delegatedContracts[index].Contracts[counter] = CalculatePayoutForContract(delegatedContracts[index].Contracts[counter], rate, delegatedContracts[index].Delegator)
   }
-  return delegatedClients, nil
 }
 
 /*
@@ -71,29 +71,18 @@ Param SnapShot: A SnapShot object describing the desired snap shot.
 Param delegateAddr: A string that represents a delegators tz address.
 Returns []string: An array of contracts delegated to the delegator during the snap shot
 */
-func GetDelegatedContractsForCycle(cycle int, delegateAddr string) ([]string, error){
-  var rtnString []string
-  snapShot, err := GetSnapShot(cycle)
+func GetDelegatedContractsForCycle(cycle int, delegateAddr string) ([]DelegatedContract, error){
+  var delegatedContracts []DelegatedContract
+  snapShot, err := GetSnapShot(cycle) //TODO. Dependant on RPC from personal node. FIgure out how to do this with tezex.info API
   if (err != nil){
-    return rtnString, errors.New("Could not get delegated contracts for cycle " + strconv.Itoa(cycle) + ": GetSnapShot(cycle int) failed: " + err.Error())
+    return errors.New("func GetDelegatedContractsForCycle(cycle int, delegateAddr string) failed: " + err.Error())
   }
-  hash, err:= GetBlockLevelHash(snapShot.AssociatedBlock)
-  if (err != nil){
-    return rtnString, errors.New("Could not get delegated contracts for cycle " + strconv.Itoa(cycle) + ": GetBlockLevelHash(level int) failed: " + err.Error())
+  contracts := tezex.GetDelegationsToAccount(delegateAddr, snapShot.AssociatedBlock)
+  for _, contract := range contracts {
+    delegatedContracts = append(delegatedContracts, DelegatedContract{Address:contract.PublicKey, TimeStamp:contract.Time, Delegate:false})
   }
-  getDelegatedContracts := "/chains/main/blocks/" + hash + "/context/delegates/" + delegateAddr + "/delegated_contracts"
-
-  s, err := TezosRPCGet(getDelegatedContracts)
-  if (err != nil){
-    return rtnString, errors.New("Could not get delegated contracts for cycle " + strconv.Itoa(cycle) + ": TezosRPCGet(arg string) failed: " + err.Error())
-  }
-
-  DelegatedContracts := reDelegatedContracts.FindAllStringSubmatch(s, -1)
-  if (DelegatedContracts == nil){
-    return rtnString, errors.New("Could not get delegated contracts for cycle " + strconv.Itoa(cycle) + ": You have no contracts.")
-  }
-  rtnString = addressesToArray(DelegatedContracts)
-  return rtnString, nil
+  delegatedContracts = append(delegatedContracts, DelegatedContract{Address:delegateAddr, Delegate:true})
+  return delegatedContracts, nil
 }
 
 /*
@@ -101,20 +90,13 @@ Description: Gets a list of all of the delegated contacts to a delegator
 Param delegateAddr (string): string representation of the address of a delegator
 Returns ([]string): An array of addresses (delegated contracts) that are delegated to the delegator
 */
-func GetAllDelegatedContracts(delegateAddr string) ([]string, error){
-  var rtnString []string
-  delegatedContractsCmd := "/chains/main/blocks/head/context/delegates/" + delegateAddr + "/delegated_contracts"
-  s, err := TezosRPCGet(delegatedContractsCmd)
-  if (err != nil){
-    return rtnString, errors.New("Could not get delegated contracts: TezosRPCGet(arg string) failed: " + err.Error())
+func GetAllDelegatedContracts(delegateAddr string) []DelegatedContract{
+  contracts := tezex.GetDelegationsToAccount(delegateAddr)
+  for _, contract := range contracts {
+    delegatedContracts = append(delegatedContracts, DelegatedContract{Address:contract.PublicKey, TimeStamp:contract.Time, Delegate:false})
   }
-
-  DelegatedContracts := reDelegatedContracts.FindAllStringSubmatch(s, -1) //TODO Error checking
-  if (DelegatedContracts == nil){
-    return rtnString, errors.New("Could not get all delegated contracts: Regex failed")
-  }
-  rtnString = addressesToArray(DelegatedContracts)
-  return rtnString, nil
+  delegatedContracts = append(delegatedContracts, DelegatedContract{Address:delegateAddr, Delegate:true})
+  return delegatedContracts
 }
 
 /*
@@ -126,26 +108,26 @@ Param delegate (bool): Is this the delegate
 Returns (Commitment): Returns a commitment with the calculations made
 Note: This function assumes Commitment.SharePercentage is already calculated.
 */
-func CalculatePayoutForCommitment(commitment Commitment, rate float64, delegate bool) Commitment{
+func CalculatePayoutForContract(contract Contract, rate float64, delegate bool) Commitment{
   ////-------------JUST FOR TESTING -------------////
   rand.Seed(time.Now().Unix())
   totalNodeRewards := rand.Intn(105000 - 70000) + 70000
  ////--------------END TESTING ------------------////
 
-  grossRewards := commitment.SharePercentage * float64(totalNodeRewards)
-  commitment.GrossPayout = grossRewards
+  grossRewards := contract.SharePercentage * float64(totalNodeRewards)
+  contract.GrossPayout = grossRewards
   fee := rate * grossRewards
-  commitment.Fee = fee
+  contract.Fee = fee
   var netRewards float64
   if (delegate){
     netRewards = grossRewards
-    commitment.NetPayout = netRewards
+    contract.NetPayout = netRewards
   } else {
     netRewards = grossRewards - fee
-    commitment.NetPayout = netRewards
+    contract.NetPayout = netRewards
   }
 
-  return commitment
+  return contract
 }
 
 /*
