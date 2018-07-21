@@ -17,10 +17,10 @@ import (
 
 /*
 Description: Calculates the percentage share of a specific cycle for all delegated contracts on a range of cycles.
-Param delegatedClients ([]DelegatedClient): A list of all the delegated contracts
+Param delegatedContracts ([]DelegatedClient): A list of all the delegated contracts
 Param cycleStart (int): The first cycle we are calculating
 Param cycleEnd (int): The last cycle we are calculating
-Returns delegatedClients ([]DelegatedClient): A list of all the delegated contracts
+Returns delegatedContracts ([]DelegatedContract): A list of all the delegated contracts
 */
 func CalculateAllContractsForCycles(delegatedContracts[]DelegatedContract, cycleStart int, cycleEnd int, rate float64) ([]DelegatedClient, error){
   var err error
@@ -28,7 +28,7 @@ func CalculateAllContractsForCycles(delegatedContracts[]DelegatedContract, cycle
   for cycleStart <= cycleEnd {
     delegatedContracts, err = CalculateAllContractsForCycle(delegatedContracts, cycleStart, rate)
     if (err != nil){
-      return delegatedContracts, errors.New("Could not calculate all commitments for cycles " + strconv.Itoa(cycleStart) + "-" +  strconv.Itoa(cycleEnd) + ":CalculateAllCommitmentsForCycle(delegatedClients []DelegatedClient, cycle int, rate float64) failed: " + err.Error())
+      return delegatedContracts, errors.New("Could not calculate all commitments for cycles " + strconv.Itoa(cycleStart) + "-" +  strconv.Itoa(cycleEnd) + ":CalculateAllCommitmentsForCycle(delegatedContracts []DelegatedContract, cycle int, rate float64) failed: " + err.Error())
     }
     cycleStart = cycleStart + 1
   }
@@ -37,14 +37,17 @@ func CalculateAllContractsForCycles(delegatedContracts[]DelegatedContract, cycle
 
 /*
 Description: Calculates the percentage share of a specific cycle for all delegated contracts
-Param delegatedClients ([]DelegatedClient): A list of all the delegated contracts
+Param delegatedContracts ([]DelegatedContract): A list of all the delegated contracts
 Param cycle (int): The cycle we are calculating
-Returns delegatedClients ([]DelegatedClient): A list of all the delegated contracts
+Param rate (float64): Fee rate of the delegate
+Param spillage (bool): If the delegate wants to hard cap the payouts at complete rolls
+Returns delegatedContracts ([]DelegatedContract): A list of all the delegated contracts
 */
-func CalculateAllContractsForCycle(delegatedContracts []DelegatedContract, cycle int, rate float64, spillage bool) error {
+func CalculateAllContractsForCycle(delegatedContracts []DelegatedContract, cycle int, rate float64, spillage bool) ([]DelegatedContract,error) {
   var err error
   var stakingBalance float64
   var balance float64
+  spillAlert := false
 
   stakingBalance, err = GetDelegateStakingBalance(delegateAddr, cycle)
   if (err != nil){
@@ -57,9 +60,9 @@ func CalculateAllContractsForCycle(delegatedContracts []DelegatedContract, cycle
   for index, delegation := range delegatedContracts{
     balance, err = GetAccountBalanceAtSnapshot(delegation.Address, cycle)
     if (err != nil){
-      return delegatedClients, errors.New("Could not calculate all commitments for cycle " + strconv.Itoa(cycle) + ":GetAccountBalanceAtSnapshot(tezosAddr string, cycle int) failed: " + err.Error())
+      return delegatedContracts, errors.New("Could not calculate all commitments for cycle " + strconv.Itoa(cycle) + ":GetAccountBalanceAtSnapshot(tezosAddr string, cycle int) failed: " + err.Error())
     }
-    delegatedClients[index].Contracts = append(delegatedClients[index].Contracts, Contracts{Cycle:cycle, Amount:balance})
+    delegatedContracts[index].Contracts = append(delegatedContracts[index].Contracts, Contracts{Cycle:cycle, Amount:balance})
   }
 
   for index, delegation := range  delegatedContracts{
@@ -71,13 +74,18 @@ func CalculateAllContractsForCycle(delegatedContracts []DelegatedContract, cycle
       counter = counter + 1
     }
     stakingBalance = stakingBalance - contract.Amount
-    if (stakingBalance < 0 && spillage){
+    if (spillAlert){
+      delegatedContracts[index].Contracts[counter].SharePercentage = 0
+    } else if (stakingBalance < 0 && spillage){
+      spillAlert = true
       delegatedContracts[index].Contracts[counter].SharePercentage = (contract.Amount + stakingBalance) / sum
     } else{
       delegatedContracts[index].Contracts[counter].SharePercentage = delegatedContracts[index].Contracts[counter].Amount / sum
     }
     delegatedContracts[index].Contracts[counter] = CalculatePayoutForContract(delegatedContracts[index].Contracts[counter], rate, delegatedContracts[index].Delegator)
   }
+
+  return delegatedContracts, nil
 }
 
 /*
@@ -146,8 +154,8 @@ func CalculatePayoutForContract(contract Contract, rate float64, delegate bool) 
 }
 
 /*
-Description: A function to Payout rewards for all contracts in delegatedClients
-Param delegatedClients ([]DelegatedClient): List of all contracts to be paid out
+Description: A function to Payout rewards for all contracts in delegatedContracts
+Param delegatedContracts ([]DelegatedClient): List of all contracts to be paid out
 Param alias (string): The alias name to your known delegation wallet on your node
 
 
@@ -170,7 +178,7 @@ func PayoutDelegatedContracts(delegatedContracts []DelegatedContract, alias stri
 
 /*
 Description: Calculates the total payout in all commitments for a delegated contract
-Param delegatedClients (DelegatedClient): the delegated contract to calulate over
+Param delegatedContracts (DelegatedClient): the delegated contract to calulate over
 Returns (DelegatedClient): return the contract with the Total Payout
 */
 func CalculateTotalPayout(delegatedContract DelegatedContract) DelegatedContract{
@@ -182,7 +190,7 @@ func CalculateTotalPayout(delegatedContract DelegatedContract) DelegatedContract
 
 /*
 Description: payout in all commitments for a delegated contract for all contracts
-Param delegatedClients (DelegatedClient): the delegated contracts to calulate over
+Param delegatedContracts (DelegatedClient): the delegated contracts to calulate over
 Returns (DelegatedClient): return the contract with the Total Payout for all contracts
 */
 func CalculateAllTotalPayout(delegatedContracts []DelegatedContract) []DelegatedContract{
@@ -198,7 +206,7 @@ Description: A test function that loops through the commitments of each delegate
              then it computes the share value of each one. The output should be = 1. With my tests it was, so you
              can really just ignore this.
 Param cycle (int): The cycle number to be queryed
-Param delegatedClients ([]DelegatedClient): the group of delegated DelegatedContracts
+Param delegatedContracts ([]DelegatedClient): the group of delegated DelegatedContracts
 Returns (float64): The sum of all shares
 */
 func CheckPercentageSumForCycle(cycle int, delegatedContracts []DelegatedContract) float64{
@@ -220,8 +228,8 @@ func CheckPercentageSumForCycle(cycle int, delegatedContracts []DelegatedContrac
 
 /*
 Description: A function to account for incomplete rolls, and the payouts associated with that
+TODO: In Progress
 
-TODO - In progress
 */
 func CalculateRollSpillage(delegatedContracts []DelegatedContract, delegateAddr string, cycle int) ([]DelegatedContract, error) {
   stakingBalance, err := GetDelegateStakingBalance(delegateAddr, cycle)
@@ -248,7 +256,7 @@ func CalculateRollSpillage(delegatedContracts []DelegatedContract, delegateAddr 
 Description: Reverse the order of an array of DelegatedClient.
              Used when fisrt retreiving contracts because the
              Tezos RPC API returns the newest contract first.
-Param delegatedClients ([]DelegatedClient) Delegated
+Param delegatedContracts ([]DelegatedClient) Delegated
 
 */
 func SortDelegateContracts(delegatedContracts []DelegatedContract) []DelegatedContract{
