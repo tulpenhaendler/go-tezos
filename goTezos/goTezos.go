@@ -7,6 +7,7 @@ import (
 	"time"
 	"sync"
 	"encoding/json"
+	"strings"
 )
 
 type TezClientWrapper struct {
@@ -76,6 +77,73 @@ func (this *GoTezos) GetHighestBlock() (models.Block, error) {
 	}
 	return block,err
 }
+
+
+func (tc *GoTezos) GetBlockByHash(blockid string) (models.Block, error) {
+	bres, err := tc.GetResponse("/chains/main/blocks/"+blockid, "")
+	block := models.Block{}
+	json.Unmarshal(bres.Bytes, &block)
+	if err != nil {
+		return models.Block{}, nil
+	}
+	return block, nil
+}
+
+
+func (tc *GoTezos) GetPeers() ([]models.Peer, error) {
+	bres, err := tc.GetResponse("/network/peers/", "")
+	tmp := [][]json.RawMessage{}
+
+	json.Unmarshal(bres.Bytes, &tmp)
+
+	res := []models.Peer{}
+	for _, a := range tmp {
+		peer := models.Peer{}
+		json.Unmarshal(a[1], &peer)
+		peer.Id = strings.Trim(string(a[0]), "")
+		peer.Addr = peer.ReachableAt.Addr
+		peer.Port = peer.ReachableAt.Port
+		peer.TotalSent = peer.Stat.TotalSent
+		peer.TotalRecv = peer.Stat.TotalRecv
+		peer.CurrentInflow = peer.Stat.CurrentInflow
+		peer.CurrentOutflow = peer.Stat.CurrentOutflow
+
+		if peer.State == "running" {
+			peer.LastRunning = time.Now()
+		}
+		res = append(res, peer)
+	}
+
+	if err != nil {
+		return res, nil
+	}
+
+	return res, nil
+}
+
+
+func (tc *GoTezos) GetContractDetails(contract string) (models.ContractDetails, error) {
+	retstruct := models.ContractDetails{}
+	respb, _ := tc.GetResponse("/chains/main/blocks/head/context/contracts/"+contract, "")
+	err := json.Unmarshal(respb.Bytes, &retstruct)
+	return retstruct, err
+}
+
+func (tc *GoTezos) GetContractDetailsAtBlock(contract string, blockhash string) (models.ContractDetails, error) {
+	retstruct := models.ContractDetails{}
+	respb, _ := tc.GetResponse("/chains/main/blocks/"+blockhash+"/context/contracts/"+contract, "")
+	err := json.Unmarshal(respb.Bytes, &retstruct)
+	return retstruct, err
+}
+
+
+func (tc *GoTezos) GetDelegateDetails(contract string) (models.DelegateDetails, error) {
+	retstruct := models.DelegateDetails{}
+	respb, _ := tc.GetResponse("/chains/main/blocks/head/context/delegates/"+contract, "")
+	err := json.Unmarshal(respb.Bytes, &retstruct)
+	return retstruct, err
+}
+
 
 
 

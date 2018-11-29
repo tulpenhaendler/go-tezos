@@ -58,3 +58,71 @@ type Block struct {
 	OperationsJSON string
 	OperationsCount int64
 }
+
+
+type Peer struct {
+	Id      string `gorm:"primary_key:yes,unique_index"`
+	Score   int    `json:"score"`
+	Trusted bool   `json:"trusted"`
+	ConnMetadata struct {
+		DisableMempool bool `json:"disable_mempool"`
+		PrivateNode    bool `json:"private_node"`
+	} `gorm:"-",json:"conn_metadata"`
+	State string `json:"state"`
+	ReachableAt struct {
+		Addr string `json:"addr"`
+		Port int    `json:"port"`
+	} `json:"reachable_at";gorm:"-"`
+	Addr string
+	Port int
+	Stat struct {
+		TotalSent      string `json:"total_sent"`
+		TotalRecv      string `json:"total_recv"`
+		CurrentInflow  int    `json:"current_inflow"`
+		CurrentOutflow int    `json:"current_outflow"`
+	} `gorm:"-",json:"stat"`
+	TotalSent                 string        `json:"total_sent"`
+	TotalRecv                 string        `json:"total_recv"`
+	CurrentInflow             int           `json:"current_inflow"`
+	CurrentOutflow            int           `json:"current_outflow"`
+	LastEstablishedConnection []interface{} `gorm:"-",json:"last_established_connection"`
+	LastSeen                  []interface{} `gorm:"-",json:"last_seen"`
+	LastCheck                 time.Time
+	LastRunning               time.Time
+	City                      string
+	Country                   string
+	Continent                 string
+	Latitude                  float64
+	Longitude                 float64
+	Timezone                  string
+	Version					  string
+}
+
+type ContractDetails struct {
+	UpdatedAt time.Time
+	DeletedAt *time.Time
+	Contract  string `gorm:"primary_key:yes,unique_index"`
+	Manager   string `json:"manager",gorm:"index:idx_manager"`
+	Balance   uint64 `json:"balance,string",gorm:"type:BigInt[]"`
+	Spendable bool   `json:"spendable"`
+	Counter uint64 `json:"counter,string",gorm:"type:decimal"`
+}
+
+type DelegateDetails struct {
+	UpdatedAt     time.Time
+	DeletedAt     *time.Time
+	Delegate      string `gorm:"primary_key:yes,unique_index"`
+	Balance       uint64 `json:"balance,string" gorm:"type:decimal"`
+	FrozenBalance uint64 `json:"frozen_balance,string" gorm:"type:decimal"`
+	FrozenBalanceByCycle []struct {
+		Cycle   int    `json:"cycle"`
+		Deposit string `json:"deposit"`
+		Fees    string `json:"fees"`
+		Rewards string `json:"rewards"`
+	} `json:"frozen_balance_by_cycle" gorm:"-"`
+	StakingBalance     uint64   `json:"staking_balance" gorm:"type:decimal"`
+	DelegatedContracts []string `gorm:"-" json:"delegated_contracts"`
+	DelegatedBalance   uint64   `json:"delegated_balance,string",gorm:"type:decimal"`
+	Deactivated        bool     `json:"deactivated"`
+	GracePeriod        int      `json:"grace_period"`
+}
