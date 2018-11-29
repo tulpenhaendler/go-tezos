@@ -2,8 +2,7 @@ package models
 
 
 type KeyPair struct {
-	Sk []byte
-	Pk []byte
-	Pkhr []byte
+	Sk string
+	Pk string
 	Address string
 }

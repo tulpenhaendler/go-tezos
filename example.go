@@ -3,6 +3,7 @@ package main
 import (
 	"github.com/DefinitelyNotAGoat/goTezos/goTezos"
 	"fmt"
+	"github.com/DefinitelyNotAGoat/goTezos/models"
 )
 
 func main(){
@@ -23,11 +24,14 @@ func main(){
 	}
 	fmt.Println(contract.Balance)
 
+	printaddr := func(a models.KeyPair) {
+		fmt.Print("\nPrivate Key: ", a.Pk)
+		fmt.Print("\nSecret Key: ", a.Sk)
+		fmt.Println("\nAddress: ", a.Address)
+	}
 
-	addr := gt.GenerateAddress()
-	fmt.Println("Generated Address: ", addr.Address)
+	printaddr(gt.GenerateAddress())
+	printaddr(gt.VanityAddressPrefix("tz1XXX"))
 
-	addr = gt.VanityAddressPrefix("tz1XXX")
-	fmt.Println("Generated Vanity Address: ", addr.Address)
 
 }

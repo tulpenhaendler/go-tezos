@@ -19,11 +19,12 @@ func (this *GoTezos) GenerateAddress() models.KeyPair {
 	sk, pk, _ := cryptosign.CryptoSignKeyPair()
 	pkhr, _ = generichash.CryptoGenericHash(20, pk, []byte{})
 	address := base58check.Encode("00", this.addPrefix(pkhr, []byte{6, 161, 159}))
+
+
 	res := models.KeyPair{
-		Sk:sk,
-		Pk:pk,
+		Sk:base58check.Encode("00", this.addPrefix(sk, []byte{43, 246, 78, 7})),
+		Pk:base58check.Encode("00", this.addPrefix(pk, []byte{13, 15, 37, 217})),
 		Address:address,
-		Pkhr:pkhr,
 	}
 	return res
 }
