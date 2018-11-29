@@ -22,4 +22,12 @@ func main(){
 		return
 	}
 	fmt.Println(contract.Balance)
+
+
+	addr := gt.GenerateAddress()
+	fmt.Println("Generated Address: ", addr.Address)
+
+	addr = gt.VanityAddressPrefix("tz1XXX")
+	fmt.Println("Generated Vanity Address: ", addr.Address)
+
 }

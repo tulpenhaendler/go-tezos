@@ -7,7 +7,8 @@ import (
 	"time"
 	"sync"
 	"encoding/json"
-	"strings"
+	"github.com/getsentry/raven-go"
+	"strconv"
 )
 
 type TezClientWrapper struct {
@@ -49,6 +50,8 @@ func NewGoTezos() *GoTezos {
 	return &a
 }
 
+
+
 func (this *GoTezos) SetLoggingFunction(a func(level, client, message string)) {
 	this.logfunction = a
 }
@@ -79,8 +82,8 @@ func (this *GoTezos) GetHighestBlock() (models.Block, error) {
 }
 
 
-func (tc *GoTezos) GetBlockByHash(blockid string) (models.Block, error) {
-	bres, err := tc.GetResponse("/chains/main/blocks/"+blockid, "")
+func (this *GoTezos) GetBlockByHash(blockid string) (models.Block, error) {
+	bres, err := this.GetResponse("/chains/main/blocks/"+blockid, "")
 	block := models.Block{}
 	json.Unmarshal(bres.Bytes, &block)
 	if err != nil {
@@ -90,8 +93,8 @@ func (tc *GoTezos) GetBlockByHash(blockid string) (models.Block, error) {
 }
 
 
-func (tc *GoTezos) GetPeers() ([]models.Peer, error) {
-	bres, err := tc.GetResponse("/network/peers/", "")
+func (this *GoTezos) GetPeers() ([]models.Peer, error) {
+	bres, err := this.GetResponse("/network/peers/", "")
 	tmp := [][]json.RawMessage{}
 
 	json.Unmarshal(bres.Bytes, &tmp)
@@ -100,7 +103,6 @@ func (tc *GoTezos) GetPeers() ([]models.Peer, error) {
 	for _, a := range tmp {
 		peer := models.Peer{}
 		json.Unmarshal(a[1], &peer)
-		peer.Id = strings.Trim(string(a[0]), "")
 		peer.Addr = peer.ReachableAt.Addr
 		peer.Port = peer.ReachableAt.Port
 		peer.TotalSent = peer.Stat.TotalSent
@@ -122,28 +124,42 @@ func (tc *GoTezos) GetPeers() ([]models.Peer, error) {
 }
 
 
-func (tc *GoTezos) GetContractDetails(contract string) (models.ContractDetails, error) {
+func (this *GoTezos) GetContractDetails(contract string) (models.ContractDetails, error) {
 	retstruct := models.ContractDetails{}
-	respb, _ := tc.GetResponse("/chains/main/blocks/head/context/contracts/"+contract, "")
+	respb, _ := this.GetResponse("/chains/main/blocks/head/context/contracts/"+contract, "")
 	err := json.Unmarshal(respb.Bytes, &retstruct)
 	return retstruct, err
 }
 
-func (tc *GoTezos) GetContractDetailsAtBlock(contract string, blockhash string) (models.ContractDetails, error) {
+func (this *GoTezos) GetContractDetailsAtBlock(contract string, blockhash string) (models.ContractDetails, error) {
 	retstruct := models.ContractDetails{}
-	respb, _ := tc.GetResponse("/chains/main/blocks/"+blockhash+"/context/contracts/"+contract, "")
+	respb, _ := this.GetResponse("/chains/main/blocks/"+blockhash+"/context/contracts/"+contract, "")
 	err := json.Unmarshal(respb.Bytes, &retstruct)
 	return retstruct, err
 }
 
 
-func (tc *GoTezos) GetDelegateDetails(contract string) (models.DelegateDetails, error) {
+func (this *GoTezos) GetDelegateDetails(contract string) (models.DelegateDetails, error) {
 	retstruct := models.DelegateDetails{}
-	respb, _ := tc.GetResponse("/chains/main/blocks/head/context/delegates/"+contract, "")
+	respb, _ := this.GetResponse("/chains/main/blocks/head/context/delegates/"+contract, "")
 	err := json.Unmarshal(respb.Bytes, &retstruct)
 	return retstruct, err
 }
 
+
+func (this *GoTezos) GetAllEndorsingRightsForCycle(cycle int) (models.CycleEndorseRights, error) {
+	resp, err := this.GetResponse("/chains/main/blocks/head/helpers/endorsing_rights?cycle=" + strconv.Itoa(cycle), "")
+
+	if err != nil {
+		raven.CaptureError(err, nil)
+		fmt.Println("Could not get Response from Tezos Node, Node down?", )
+		return models.CycleEndorseRights{}, err
+	}
+
+	ret := models.CycleEndorseRights{}
+	json.Unmarshal(resp.Bytes,&ret)
+	return ret, nil
+}
 
 
 
@@ -172,16 +188,16 @@ func (this *GoTezos) checkHealthStatus(){
 		go func(wg *sync.WaitGroup, client *TezClientWrapper){
 			res := a.client.Healthcheck()
 			if a.healthy && res == false {
-				this.logfunction("WARNING","Client State switched to unhealthy", this.ActiveRPCCient.client.Host + this.ActiveRPCCient.client.Port)
+				this.logfunction("WARNING","Client State swithished to unhealthy", this.ActiveRPCCient.client.Host + this.ActiveRPCCient.client.Port)
 			}
 			if !a.healthy && res {
-				this.logfunction("INFO","Client State switched to healthy", this.ActiveRPCCient.client.Host + this.ActiveRPCCient.client.Port)
+				this.logfunction("INFO","Client State swithished to healthy", this.ActiveRPCCient.client.Host + this.ActiveRPCCient.client.Port)
 			}
 			a.healthy = res
 			wg.Done()
 		}(&wg, a)
 	}
-	wg.Done()
+	wg.Wait()
 	this.clientLock.Unlock()
 }
 
@@ -194,14 +210,14 @@ func (this *GoTezos) checkUnhealthyClients(){
 			if a.healthy == false {
 				res := a.client.Healthcheck()
 				if !a.healthy && res {
-					this.logfunction("INFO", "Client State switched to healthy", this.ActiveRPCCient.client.Host+this.ActiveRPCCient.client.Port)
+					this.logfunction("INFO", "Client State swithished to healthy", this.ActiveRPCCient.client.Host+this.ActiveRPCCient.client.Port)
 				}
 				a.healthy = res
 			}
 			wg.Done()
 		}(&wg, a)
 	}
-	wg.Done()
+	wg.Wait()
 	this.clientLock.Unlock()
 }
 
@@ -230,7 +246,7 @@ func (this *GoTezos) getRandomHealthyClient() *TezClientWrapper{
 }
 
 
-func (this *GoTezos) setClient() error {
+func (this *GoTezos) sethislient() error {
 	if this.balancerStrategy == "failover" {
 		c := this.getFirstHealthyClient()
 		if c == nil {
@@ -261,7 +277,7 @@ func (this *GoTezos) setClient() error {
 }
 
 func (this *GoTezos) GetResponse(method string, args string) (models.ResponseRaw, error) {
-	e := this.setClient()
+	e := this.sethislient()
 	if e != nil {
 		this.logfunction("FATAL","goTezos","could not find any healthy Clients")
 		return models.ResponseRaw{},e
@@ -271,7 +287,7 @@ func (this *GoTezos) GetResponse(method string, args string) (models.ResponseRaw
 	r, err := this.ActiveRPCCient.client.GetResponse(method,args)
 	if err != nil {
 		this.ActiveRPCCient.healthy = false
-		this.logfunction("WARNING", this.ActiveRPCCient.client.Host + this.ActiveRPCCient.client.Port, "Client State switched to unhealthy")
+		this.logfunction("WARNING", this.ActiveRPCCient.client.Host + this.ActiveRPCCient.client.Port, "Client State swithished to unhealthy")
 		return this.GetResponse(method,args)
 	}
 	return r,err
