@@ -7,8 +7,8 @@ import (
 
 func main(){
 	gt :=  goTezos.NewGoTezos()
-	client3 := goTezos.NewTezosRPCClient("localhost",":8732")
-	gt.AddNewClient(client3)
+	client := goTezos.NewTezosRPCClient("localhost",":8732")
+	gt.AddNewClient(client)
 	block, err := gt.GetHighestBlock()
 	if err != nil {
 		return

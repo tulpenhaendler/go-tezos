@@ -39,7 +39,17 @@ func NewGoTezos() *GoTezos {
 		fmt.Printf("%8s %s: %s\n", level, client, message)
 	}
 	a.rand = rand.New(rand.NewSource(time.Now().Unix()))
+	go func(a *GoTezos){
+		for {
+			time.Sleep(15*time.Second)
+			a.checkUnhealthyClients()
+		}
+	}(&a)
 	return &a
+}
+
+func (this *GoTezos) SetLoggingFunction(a func(level, client, message string)) {
+	this.logfunction = a
 }
 
 func (this *GoTezos) GetBlockChainHeads() ([][]string,error) {
@@ -88,16 +98,42 @@ func (this *GoTezos) UseBalancerStrategyRandom(){
 
 func (this *GoTezos) checkHealthStatus(){
 	this.clientLock.Lock()
+	wg := sync.WaitGroup{}
 	for _,a := range this.RpcClients {
-		res := a.client.Healthcheck()
-		if a.healthy && res == false {
-			this.logfunction("WARNING","Client State switched to unhealthy", this.ActiveRPCCient.client.Host + this.ActiveRPCCient.client.Port)
-		}
-		if !a.healthy && res {
-			this.logfunction("INFO","Client State switched to healthy", this.ActiveRPCCient.client.Host + this.ActiveRPCCient.client.Port)
-		}
-		a.healthy = res
+		wg.Add(1)
+		go func(wg *sync.WaitGroup, client *TezClientWrapper){
+			res := a.client.Healthcheck()
+			if a.healthy && res == false {
+				this.logfunction("WARNING","Client State switched to unhealthy", this.ActiveRPCCient.client.Host + this.ActiveRPCCient.client.Port)
+			}
+			if !a.healthy && res {
+				this.logfunction("INFO","Client State switched to healthy", this.ActiveRPCCient.client.Host + this.ActiveRPCCient.client.Port)
+			}
+			a.healthy = res
+			wg.Done()
+		}(&wg, a)
 	}
+	wg.Done()
+	this.clientLock.Unlock()
+}
+
+func (this *GoTezos) checkUnhealthyClients(){
+	this.clientLock.Lock()
+	wg := sync.WaitGroup{}
+	for _,a := range this.RpcClients {
+		wg.Add(1)
+		go func(wg *sync.WaitGroup, client *TezClientWrapper){
+			if a.healthy == false {
+				res := a.client.Healthcheck()
+				if !a.healthy && res {
+					this.logfunction("INFO", "Client State switched to healthy", this.ActiveRPCCient.client.Host+this.ActiveRPCCient.client.Port)
+				}
+				a.healthy = res
+			}
+			wg.Done()
+		}(&wg, a)
+	}
+	wg.Done()
 	this.clientLock.Unlock()
 }
 
