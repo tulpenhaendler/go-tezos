@@ -25,7 +25,6 @@ func init() {
   TezosPath, ok = os.LookupEnv("TEZOSPATH")
   if !ok {
 	   fmt.Println("Error: Could not retrieve TEZOSPATH")
-	   os.Exit(1)
   }
   TezosPath = TezosPath + "tezos-client"
 }
